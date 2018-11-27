@@ -60,7 +60,7 @@ MAX_LOCAL_CACHE = 200000        #下载失败的hash和数据库已有的hash缓
 DB_NAME = 'zsky'
 DB_HOST = '127.0.0.1'
 DB_USER = 'root'
-DB_PASS = 'activezz1983'
+DB_PASS = ''
 DB_PORT = 3306
 
 ############Redis缓存配置###########
@@ -76,13 +76,13 @@ BAD_HASH_EXPIRES = 3600 * 1     #无法下载的short_hash缓存缓存多久
 ############RabbitMQ消息队列配置###########
 MQ_HOST = '127.0.0.1'
 MQ_PORT = 5672
-MQ_USER = 'hash'
-MQ_PASSWD = 'hash'
+MQ_USER = 'youseed'
+MQ_PASSWD = 'youseed'
 MQ_VIRTUAL_HOSTS = '/'
 
 #用于存储和搜索的数据，各自保存几个副本
 MQ_STORE_NUM = 1
-MQ_SEARCH_NUM = 2
+MQ_SEARCH_NUM = 0
 
 ##入库的交换器
 MQ_STORE_EXCHANGE = 'store'
@@ -784,23 +784,24 @@ class Master(Thread):
                     
                     #6.1写入需要更新热度的hash队列
                     self.hash_update = self.hash_update[:self.n_new * HASH_UPDATE_SIZE_RATE]#根据新资源数量，截取需更新数量
-                    str_update = json.dumps(self.hash_update)
-                    
-                    t1 = int(round(time.time() * 1000))
-                    #6.1.1存储队列
-                    self.channel.basic_publish(exchange = MQ_STORE_EXCHANGE, 
-                        routing_key = MQ_STORE_UPDATE_QUEUE_PREFIX + '.*',
-                        body = str_update,
-                        properties = pika.BasicProperties(delivery_mode = 1))
-                    
-                    #6.1.2ES队列
-                    self.channel.basic_publish(exchange = MQ_SEARCH_EXCHANGE, 
-                        routing_key = MQ_SEARCH_UPDATE_QUEUE_PREFIX + '.*',
-                        body = str_update,
-                        properties = pika.BasicProperties(delivery_mode = 1))
-                    
-                    t2 = int(round(time.time() * 1000))
-                    self.mq_costs += (t2 - t1)#记录MQ操作耗时
+                    if len(self.hash_update) > 0 :
+                        str_update = json.dumps(self.hash_update)
+                        
+                        t1 = int(round(time.time() * 1000))
+                        #6.1.1存储队列
+                        self.channel.basic_publish(exchange = MQ_STORE_EXCHANGE, 
+                            routing_key = MQ_STORE_UPDATE_QUEUE_PREFIX + '.*',
+                            body = str_update,
+                            properties = pika.BasicProperties(delivery_mode = 1))
+                        
+                        #6.1.2ES队列
+                        self.channel.basic_publish(exchange = MQ_SEARCH_EXCHANGE, 
+                            routing_key = MQ_SEARCH_UPDATE_QUEUE_PREFIX + '.*',
+                            body = str_update,
+                            properties = pika.BasicProperties(delivery_mode = 1))
+                        
+                        t2 = int(round(time.time() * 1000))
+                        self.mq_costs += (t2 - t1)#记录MQ操作耗时
                     
                     #6.1.3失败hash写入Redis
                     t1 = int(round(time.time() * 1000))
@@ -1057,6 +1058,6 @@ if __name__ == "__main__":
     rpcthread.setDaemon(True)
     rpcthread.start()
 
-    dht = DHTServer(master, "0.0.0.0", 6881, max_node_qsize=5)
+    dht = DHTServer(master, "0.0.0.0", 6881, max_node_qsize=10)
     dht.start()
     dht.auto_send_find_node()
