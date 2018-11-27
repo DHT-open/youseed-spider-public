@@ -1,11 +1,5 @@
 #!/usr/bin/env python
 # encoding: utf-8
-
-"""
-用于纸上烤鱼磁力程序
-爬虫版本1.0
-@web程序猿
-"""
 import socket
 import hashlib
 import os
@@ -29,8 +23,8 @@ import binascii
 import random
 import logging
 import redis
-import pymysql
-from DBUtils.PooledDB import PooledDB
+import pymongo
+from pymongo import MongoClient
 import pika
 
 ########爬虫编号#######
@@ -55,12 +49,16 @@ FILELIST_MAX_SIZE = 500         #文件列表中的文件数，最多保留多�
 
 MAX_LOCAL_CACHE = 200000        #下载失败的hash和数据库已有的hash缓存大小，每次到达上限后缩减10%
 
-############数据库配置###########
-DB_NAME = 'zsky'
-DB_HOST = '127.0.0.1'
-DB_USER = 'root'
-DB_PASS = ''
-DB_PORT = 3306
+############Mongodb数据库配置###########
+M_HOST = '127.0.0.1'            #本机IP
+M_PORT = 33666                  #本机端口
+
+M_AUTH = True
+M_USER = 'reader'
+M_PASSWD = 'activezz1983'
+
+M_DB = 'seed'                #数据库名
+M_COLL_HASH = 'seed_hash'       #hash集合名
 
 ############Redis缓存配置###########
 R_HOST = '127.0.0.1'            #本机IP
@@ -74,14 +72,14 @@ BAD_HASH_EXPIRES = 3600 * 1     #无法下载的short_hash缓存缓存多久
 
 ############RabbitMQ消息队列配置###########
 MQ_HOST = '127.0.0.1'
-MQ_PORT = 5672
-MQ_USER = 'youseed'
-MQ_PASSWD = 'youseed'
+MQ_PORT = 5566
+MQ_USER = 'hash'
+MQ_PASSWD = 'hash'
 MQ_VIRTUAL_HOSTS = '/'
 
 #用于存储和搜索的数据，各自保存几个副本
 MQ_STORE_NUM = 1
-MQ_SEARCH_NUM = 0
+MQ_SEARCH_NUM = 2
 
 ##入库的交换器
 MQ_STORE_EXCHANGE = 'store'
@@ -95,6 +93,8 @@ MQ_SEARCH_EXCHANGE = 'search'
 #入搜索引擎队列前缀
 MQ_SEARCH_HASH_QUEUE_PREFIX = 'search.new'
 MQ_SEARCH_UPDATE_QUEUE_PREFIX = 'search.update'
+
+
 
 ############DHT配置###########
 BOOTSTRAP_NODES = (
@@ -155,6 +155,9 @@ TOKEN_LENGTH = 2
 BT_PROTOCOL = "BitTorrent protocol"
 BT_MSG_ID = 20
 EXT_HANDSHAKE_ID = 0
+
+
+
 
 ############GO###########
 def get_extension(name):
@@ -496,8 +499,14 @@ class Master(Thread):
         self.rds_pool_hash_id = redis.ConnectionPool(host=R_HOST,port=R_PORT,db=R_DB_HASH_ID)
         self.rds_pool_bad_hash = redis.ConnectionPool(host=R_HOST,port=R_PORT,db=R_DB_BAD_HASH)
 
-        ########初始化Mysql连接
-        self.pool = PooledDB(pymysql,5,host=DB_HOST,user=DB_USER,passwd=DB_PASS,db=DB_NAME,port=DB_PORT,charset="utf8mb4")
+        ########初始化Mongo连接
+        mongo_client = MongoClient(M_HOST, M_PORT)
+        if M_AUTH:
+            db_auth = mongo_client.admin
+            db_auth.authenticate(M_USER, M_PASSWD)
+        db = mongo_client[M_DB]
+        
+        self.mongo_hash = db[M_COLL_HASH]
         
         ########初始化消息队列
         self.declare_mq()
@@ -672,6 +681,7 @@ class Master(Thread):
             #2.抓取计数
             self.n_reqs += 1
             
+            
             try:
                 #4.检查资源是否已经入库
                 hasHash = False
@@ -710,34 +720,14 @@ class Master(Thread):
                 #4.3Redis缓存中都没有记录时，去数据库查询    
                 if not hasHash and not badHash:
                     self.n_query += 1
-            
-                    conn = None
-                    curr = None
+                    t1 = int(round(time.time() * 1000))
                     
-                    try:
-                        t1 = int(round(time.time() * 1000))
-                        conn = self.pool.connection()
-                        curr = conn.cursor()
-                        curr.execute('SELECT id FROM search_hash WHERE info_hash = %s limit 1', (info_hash,))
-                        y = curr.fetchone()
-                        if y:
-                            hasHash = True
-                            self.hash_tosave.append(short_hash) #准备写入id缓存
+                    if self.mongo_hash.find_one({'short_hash': short_hash}, {'_id': 1}):
+                        hasHash = True
+                        self.hash_tosave.append(short_hash) #准备写入id缓存
 
-                        t2 = int(round(time.time() * 1000))
-                        self.store_costs += (t2 - t1)#记录数据操作耗时
-                        
-                    finally:
-                        if curr:
-                            try:
-                                curr.close()
-                            except:
-                                pass
-                        if conn:
-                            try:
-                                conn.close()
-                            except:
-                                pass     
+                    t2 = int(round(time.time() * 1000))
+                    self.store_costs += (t2 - t1)#记录Mongo操作耗时
                  
                 #5对资源进行入库操作    
                 #5.1如果是已经入库的资源
@@ -885,7 +875,7 @@ class Master(Thread):
                     self.hash_tosave = []
                     self.costs = int(round(time.time() * 1000))
             except:
-                logger.error('读/写Mysql/Redis/RabbitMQ时发生错误')
+                logger.error('读/写Mongo/Redis/RabbitMQ时发生错误')
                 traceback.print_exc()
 
                     
@@ -1054,6 +1044,6 @@ if __name__ == "__main__":
     rpcthread.setDaemon(True)
     rpcthread.start()
 
-    dht = DHTServer(master, "0.0.0.0", 6881, max_node_qsize=1000)
+    dht = DHTServer(master, "0.0.0.0", 6881, max_node_qsize=500)
     dht.start()
     dht.auto_send_find_node()
