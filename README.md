@@ -2,6 +2,16 @@
 
 此程序使用python语言，在目前最流行的磁力爬虫`sim_dht_spider.py`基础之上改写而来，具有更低的资源占用和更高的爬取性能。
 
+如果使用HDD硬盘的服务器，例如KS3C之流，本爬虫可以大幅提高抓取效率。
+
+![](img/work.png)
+
+注意：此程序是上图左侧方框“爬取DHT磁力资源”的部分。
+
+- DHT爬虫：[https://github.com/dht-open/youseed-spider-public](https://github.com/DHT-open/youseed-spider-public)
+- 爬虫数据入库：[https://github.com/DHT-open/youseed-spider-saver-public](https://github.com/DHT-open/youseed-spider-saver-public)
+
+
 *此程序仅用作技术学习和研究*
 
 # 功能 #
@@ -9,6 +19,10 @@
 抓取磁力元数据，并保存到消息队列。
 
 **注意**：此爬虫程序主要负责抓取数据，需要配合“youseed-spider-saver-public”程序保存至数据库。
+
+- 使用“纸上烤鱼”磁力程序，运行`dht_spider_zsky.py`＋`youseed-spider-saver-public.jar`爬取和保存资源;
+- 使用“Youseed”磁力程序，运行`dht_spider.py`＋`youseed-spider-saver-public.jar`爬取和保存资源;
+
 
 # 程序特点 #
 
