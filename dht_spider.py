@@ -51,11 +51,11 @@ MAX_LOCAL_CACHE = 200000        #下载失败的hash和数据库已有的hash缓
 
 ############Mongodb数据库配置###########
 M_HOST = '127.0.0.1'            #本机IP
-M_PORT = 33666                  #本机端口
+M_PORT = 27017                  #本机端口
 
-M_AUTH = True
-M_USER = 'reader'
-M_PASSWD = 'activezz1983'
+M_AUTH = False                  #启用账户验证？
+M_USER = ''                     #账号
+M_PASSWD = ''                   #密码
 
 M_DB = 'seed'                #数据库名
 M_COLL_HASH = 'seed_hash'       #hash集合名
