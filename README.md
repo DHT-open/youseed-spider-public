@@ -50,3 +50,7 @@
 - redis
 - rabbitMQ
 - Mongodb（Youseed磁力程序）/ Mysql（纸上烤鱼磁力程序）
+
+# 安装 #
+
+具体请阅读：安装说明 - for纸上烤鱼.md
