@@ -23,7 +23,6 @@
 **注意**：此爬虫程序主要负责抓取数据，需要配合“youseed-spider-saver-public”程序保存至数据库。
 
 - 使用“纸上烤鱼”磁力程序，运行`dht_spider_zsky.py`＋`youseed-spider-saver-public.jar`爬取和保存资源;
-- 使用“Youseed”磁力程序，运行`dht_spider.py`＋`youseed-spider-saver-public.jar`爬取和保存资源;
 
 
 # 程序特点 #
